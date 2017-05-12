@@ -10,7 +10,7 @@
 ## Features
 
 * IconHUD places information of your app on icon. (version, branch, commit ID, build date, build config etc...)
-* It does NOT process icon image file in your project's asset. (IconHUD processes icon image file in build dir only.)
+* It does NOT process icon image file in your project's asset. (IconHUD processes icon image file in temporary directory only.)
 * It does NOT work on release build. (If BuildConfig name is "Release".)
 
 ## Installation
