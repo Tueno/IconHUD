@@ -12,6 +12,11 @@ final class IconConverter {
     
     static let Version = "1.0"
     
+    private struct Constant {
+        static let releaseBuildConfigName: String = "Release"
+        static let debugBuildConfigName: String   = "Debug"
+    }
+    
     func staticMode() {        
         if ConsoleIO.optionsInCommandLineArguments().contains(.help) {
             ConsoleIO.printUsage()
@@ -26,11 +31,26 @@ final class IconConverter {
     private func modifyIcon(ignoreDebugBuild: Bool) {        
         ConsoleIO.printNotice()
         let buildConfig = ConsoleIO.environmentVariable(key: .buildConfig)
-        guard buildConfig != "Release" && !(buildConfig == "Debug" && ignoreDebugBuild) else {
+        guard buildConfig != Constant.releaseBuildConfigName && !(buildConfig == Constant.debugBuildConfigName && ignoreDebugBuild) else {
             print("\(ConsoleIO.executableName) stopped because it is running for \(buildConfig) build.")
             return
         }
-        // find icon
+        let appIconSetContentsJsonPaths = contentsJsonPath()
+        guard appIconSetContentsJsonPaths.count > 0 else {
+            print("Error: Contents.json not found.")
+            return
+        }
+        let iconImagePaths = imagePaths(contentJsonPaths: appIconSetContentsJsonPaths)
+        iconImagePaths
+            .forEach { (pathInAsset: String, pathInBuildDir: String) in
+                print("Copy \(pathInAsset) to \(pathInBuildDir).")
+                self.copyAssetImageToBuildDirectory(pathInAsset: pathInAsset,
+                                                    pathInBuildDir: pathInBuildDir)
+            }
+        processImages(imagePaths: iconImagePaths)
+    }
+    
+    private func contentsJsonPath() -> [String] {
         let targetDir: String
         if let dir = ConsoleIO.optionArgument(option: .sourceDirName) {
             targetDir = dir
@@ -55,16 +75,16 @@ final class IconConverter {
                 return String(format: "%@/Contents.json", path)
             })
             ?? []
-        guard appIconSetContentsJsonPaths.count > 0 else {
-            print("Error: Contents.json not found.")
-            return
-        }
-        let iconImagePathsArray = appIconSetContentsJsonPaths
+        return appIconSetContentsJsonPaths
+    }
+    
+    private func imagePaths(contentJsonPaths: [String]) -> [(pathInAsset: String, pathInBuildDir: String)] {
+        return contentJsonPaths
             .map { (contentJsonPath) -> [(pathInAsset: String, pathInBuildDir: String)] in
                 print("Contents.json path -> \(contentJsonPath)")
                 if let jsonData = try? Data(contentsOf: URL(fileURLWithPath: contentJsonPath)),
-                let jsonObject = try? JSONSerialization.jsonObject(with: jsonData, options: []),
-                let jsonDict = jsonObject as? [String : AnyObject] {
+                    let jsonObject = try? JSONSerialization.jsonObject(with: jsonData, options: []),
+                    let jsonDict = jsonObject as? [String : AnyObject] {
                     let imageNamesArray = analyzeJsonAndGetImageNames(jsonDict: jsonDict)
                     let imagePathsArray = imageNamesArray
                         .map({ (imageNames) -> (pathInAsset: String, pathInBuildDir: String) in
@@ -81,28 +101,25 @@ final class IconConverter {
                     return []
                 }
             }
-            .flatMap() { $0 }
-        iconImagePathsArray
-            .forEach { (pathInAsset: String, pathInBuildDir: String) in
-                print("Copy \(pathInAsset) to \(pathInBuildDir).")
-                self.copyAssetImageToBuildDirectory(pathInAsset: pathInAsset,
-                                                    pathInBuildDir: pathInBuildDir)
-            }
-        
+            .flatMap() { path in path }
+    }
+    
+    private func processImages(imagePaths: [(pathInAsset: String, pathInBuildDir: String)]) {
+        let buildConfig           = ConsoleIO.environmentVariable(key: .buildConfig)
         let branchName: String    = AppInfo.branchName
         let commitId: String      = AppInfo.commitId
         let buildNumber: String   = AppInfo.buildNumber
         let versionNumber: String = AppInfo.versionNumber
         let dateStr: String       = currentDate()
-
-        iconImagePathsArray
+        
+        imagePaths
             .map({ (pathInAsset: String, pathInBuildDir: String) -> String in
                 return pathInBuildDir
             })
             .forEach { (path) in
                 let imageWidthStr = bash(command: "identify",
-                                      currentDirPath: nil,
-                                      arguments: ["-format", "%w", path])
+                                         currentDirPath: nil,
+                                         arguments: ["-format", "%w", path])
                 let hudWidth        = Int(imageWidthStr) ?? 0
                 let topHUDHeight    = 20
                 let bottomHUDHeight = 48
@@ -113,10 +130,10 @@ final class IconConverter {
                                      "-gravity", "center",
                                      "-size", String(format: "%dx%d", hudWidth, topHUDHeight),
                                      "caption:\(dateStr)",
-                                     path,
-                                     "+swap",
-                                     "-gravity", "north" ,
-                                     "-composite", path])
+                            path,
+                            "+swap",
+                            "-gravity", "north" ,
+                            "-composite", path])
                 _ = bash(command: "convert",
                          currentDirPath: nil,
                          arguments: ["-background", "#0008",
@@ -124,11 +141,11 @@ final class IconConverter {
                                      "-gravity", "center",
                                      "-size", String(format: "%dx%d", hudWidth, bottomHUDHeight),
                                      "caption:\(versionNumber)(\(buildNumber)) \(buildConfig) \n\(branchName) \n\(commitId)",
-                                     path,
-                                     "+swap",
-                                     "-gravity", "south" ,
-                                     "-composite", path])
-            }
+                            path,
+                            "+swap",
+                            "-gravity", "south" ,
+                            "-composite", path])
+        }
     }
     
     private func currentDate() -> String {

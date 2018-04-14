@@ -58,10 +58,10 @@ enum OptionType {
         get {
             let MaxLength = OptionType.allValues
                 .map({ (option) -> Int in
-                    return option.valuesToPrint.characters.count
+                    return option.valuesToPrint.count
                 })
                 .max()! + 10
-            return (0..<MaxLength-valuesToPrint.characters.count)
+            return (0..<MaxLength-valuesToPrint.count)
                 .reduce("") { (combined, _) -> String in
                     return combined + " "
                 }
