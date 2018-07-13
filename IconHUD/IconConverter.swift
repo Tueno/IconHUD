@@ -67,7 +67,7 @@ final class IconConverter {
                 }
                 return String(format: "%@/%@", path, relativePath)
             })
-            .flatMap() { $0 }
+            .compactMap() { $0 }
             .filter({ (path) -> Bool in
                 return path.hasSuffix("appiconset")
             })
@@ -174,7 +174,7 @@ final class IconConverter {
                 return (imageNameInAsset: filename,
                         imageNameInBuildDir: convertImageName(size: size, scale: scale, idiom: idiom))
             })
-            .flatMap() { $0 }
+            .compactMap() { $0 }
     }
     
     private func convertImageName(size: String, scale: String, idiom: String) -> String {
