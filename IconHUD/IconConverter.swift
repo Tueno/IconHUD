@@ -10,7 +10,7 @@ import Foundation
 
 final class IconConverter {
     
-    static let Version = "1.0"
+    static let Version = "1.1"
     
     private struct Constant {
         static let releaseBuildConfigName: String = "Release"
