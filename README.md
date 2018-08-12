@@ -1,6 +1,7 @@
 # IconHUD
 
-
+Android version is here.  
+https://github.com/Tueno/IconHUD-Android/
 
 <p align="center">
 <img src="sample/iconhud_sample.png" alt="iconhud_sample"/>
@@ -21,7 +22,7 @@ brew install iconhud
 
 ## Usage
 
-Add the line below to RunScript phase of your Xcode project.  
+Add the 'Run Scripts' phase to after 'Copy Bundle Resources' phase and then add the line below to 'Run Scripts' phase.
 ```
 iconhud
 ```

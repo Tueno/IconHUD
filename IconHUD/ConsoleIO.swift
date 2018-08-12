@@ -61,9 +61,11 @@ final class ConsoleIO {
     class func printUsage() {
         print("Usage:")
         print("")
-        print("     Add the line below to RunScript phase of your Xcode project.")
+        print("     Add the 'Run Scripts' phase to after 'Copy Bundle Resources' phase and then add the line below to 'Run Scripts' phase.")
         print("")
+        print("     ----------")
         print("     \(executableName)")
+        print("     ----------")
         print("")
         print("Options:")
         print("")
@@ -72,14 +74,19 @@ final class ConsoleIO {
                 let argumentsStr = option.valuesToPrint
                 print("     [\(argumentsStr)]\(option.usage)")
             }
+        printNotice()
     }
     
     class func printNotice() {
         print("")
         print("*** IMPORTANT ***")
-        print("\(executableName) currently uses BuildConfig name to detect Relase build.")
-        print("So if you change Release BuildConfig name, \(executableName) will process icon even if you want to build for release.")
         print("")
+        print("1. \(executableName) uses 'Build Configurations' name of Xcode project to detect relase build. (There are 'Debug' and 'Release' values as default.)")
+        print("   So if you change Release BuildConfig name, \(executableName) will process icon even if you want to build for release.")
+        print("")
+        print("2. Don't forget to place 'Run Scripts' phase that contains 'iconhud' on after 'Copy Bundle Resources' phase.")
+        print("")
+        print("*****************")
     }
     
 }
