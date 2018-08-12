@@ -15,6 +15,7 @@ final class IconConverter {
     private struct Constant {
         static let releaseBuildConfigName: String = "Release"
         static let debugBuildConfigName: String   = "Debug"
+        static let tempRootRelativePath: String   = "iconhud/temp"
     }
     
     func staticMode() {        
@@ -35,22 +36,117 @@ final class IconConverter {
             print("\(ConsoleIO.executableName) stopped because it is running for \(buildConfig) build.")
             return
         }
-        let appIconSetContentsJsonPaths = contentsJsonPath()
+
+        // Copy Asset dir to temp dir
+        let asestsPath = assetsPath()
+        guard let assetsDirName = asestsPath.components(separatedBy: "/").last else {
+            print("Error: Failed to get assets dir name.")
+            return
+        }
+        bash(command: "mkdir", currentDirPath: ConsoleIO.environmentVariable(key: .projectRoot),
+             arguments: ["-p", Constant.tempRootRelativePath])
+        let tempRootPath = String(format: "%@/%@", ConsoleIO.environmentVariable(key: .projectRoot), Constant.tempRootRelativePath)
+        bash(command: "cp", currentDirPath: nil, arguments: ["-R", "-f", asestsPath, tempRootPath])
+        let appIconName = ConsoleIO.environmentVariable(key: .appIconName)
+        let appIconSetContentsJsonPaths = String(format: "%@/%@/%@.appiconset/Contents.json", tempRootPath, assetsDirName, appIconName)
         guard appIconSetContentsJsonPaths.count > 0 else {
             print("Error: Contents.json not found.")
             return
         }
-        let iconImagePaths = imagePaths(contentJsonPaths: appIconSetContentsJsonPaths)
-        iconImagePaths
-            .forEach { (pathInAsset: String, pathInBuildDir: String) in
-                print("Copy \(pathInAsset) to \(pathInBuildDir).")
-                self.copyAssetImageToBuildDirectory(pathInAsset: pathInAsset,
-                                                    pathInBuildDir: pathInBuildDir)
-            }
-        processImages(imagePaths: iconImagePaths)
+        let iconImagePaths = imagePaths(contentJsonPaths: [appIconSetContentsJsonPaths])
+
+        // Modify icon image in temp dir
+        let imagePathsInTempAssets = iconImagePaths.map { imagePaths in imagePaths.pathInAsset }
+        processAppIconImages(imagePaths: imagePathsInTempAssets)
+
+        // Generate and place files in build intermediate dir
+        let tempAssetsPath = String(format: "%@/%@", tempRootPath, assetsDirName)
+        generateCarFileFrom(assetsPath: tempAssetsPath)
+
+        // Remove temp asset dir
+        bash(command: "rm", currentDirPath: nil, arguments: ["-rf", tempAssetsPath])
+    }
+
+    /// Modify app icon with using imagemagick
+    private func processAppIconImages(imagePaths: [String]) {
+        let buildConfig           = ConsoleIO.environmentVariable(key: .buildConfig)
+        let branchName: String    = AppInfo.branchName
+        let commitId: String      = AppInfo.commitId
+        let buildNumber: String   = AppInfo.buildNumber
+        let versionNumber: String = AppInfo.versionNumber
+        let dateStr: String       = Date().hourMinuteMonthDayYearString()
+        
+        imagePaths
+            .forEach { (path) in
+                let imageWidthStr = bash(command: "identify",
+                                         currentDirPath: nil,
+                                         arguments: ["-format", "%w", path])
+                let hudWidth        = Int(imageWidthStr) ?? 0
+                let topHUDHeight    = 20
+                let bottomHUDHeight = 48
+                bash(command: "convert",
+                     currentDirPath: nil,
+                     arguments: ["-background", "#0008",
+                                 "-fill", "white",
+                                 "-gravity", "center",
+                                 "-size", String(format: "%dx%d", hudWidth, topHUDHeight),
+                                 "caption:\(dateStr)",
+                        path,
+                        "+swap",
+                        "-gravity", "north" ,
+                        "-composite", path])
+                bash(command: "convert",
+                     currentDirPath: nil,
+                     arguments: ["-background", "#0008",
+                                 "-fill", "white",
+                                 "-gravity", "center",
+                                 "-size", String(format: "%dx%d", hudWidth, bottomHUDHeight),
+                                 "caption:\(versionNumber)(\(buildNumber)) \(buildConfig) \n\(branchName) \n\(commitId)",
+                        path,
+                        "+swap",
+                        "-gravity", "south" ,
+                        "-composite", path])
+        }
+    }
+
+    private func generateCarFileFrom(assetsPath: String) {
+        let projectName = ConsoleIO.environmentVariable(key: .projectName)
+        let intermediateBuildDir = ConsoleIO.environmentVariable(key: .tempRoot) + "/"
+            + projectName + ".build/"
+            + ConsoleIO.environmentVariable(key: .buildConfig) + ConsoleIO.environmentVariable(key: .effectivePlatformName) + "/"
+            + projectName + ".build"
+        let exportDependencyInfo   = intermediateBuildDir + "/assetcatalog_dependencies"
+        let outputPartialInfoPlist = intermediateBuildDir + "/assetcatalog_generated_info.plist"
+        let appPath =  ConsoleIO.environmentVariable(key: .codesigningFolderPath)
+        let compileOutputDir = appPath
+        let compileInputDir  = assetsPath
+        print("Input path for actool: ", compileInputDir)
+        let result = bash(command: "actool",
+             currentDirPath: nil,
+             arguments: ["--output-format", "human-readable-text",
+                         "--notices", "--warnings",
+                         "--export-dependency-info", exportDependencyInfo,
+                         "--output-partial-info-plist", outputPartialInfoPlist,
+                         "--app-icon", ConsoleIO.environmentVariable(key: .appIconName),
+                         "--compress-pngs",
+                         "--enable-on-demand-resources", "YES",
+                         "--sticker-pack-identifier-prefix", ConsoleIO.environmentVariable(key: .stickerPackIdentifierPrefix),
+                         "--target-device", "iphone", "--target-device", "ipad", //, "--target-device", "watch", "--target-device", "tv",
+                         "--minimum-deployment-target", ConsoleIO.environmentVariable(key: .deploymentTarget),
+                         "--platform", ConsoleIO.environmentVariable(key: .platformName),
+                         "--product-type", ConsoleIO.environmentVariable(key: .productType),
+                         "--compile", compileOutputDir, compileInputDir])
+        print(result)
     }
     
-    private func contentsJsonPath() -> [String] {
+}
+
+// MARK: - Getting file path functions
+
+private extension IconConverter {
+
+    // I believe there is a more smart way to get .xcassets path...
+    func assetsPath() -> String {
         let targetDir: String
         if let dir = ConsoleIO.optionArgument(option: .sourceDirName) {
             targetDir = dir
@@ -60,111 +156,51 @@ final class IconConverter {
         let path       = String(format: "%@/%@", ConsoleIO.environmentVariable(key: .projectRoot), targetDir)
         let manager    = FileManager.default
         let enumerator = manager.enumerator(atPath: path)
-        let appIconSetContentsJsonPaths = enumerator?
-            .map({ (element) -> String? in
+        let assetsPath = enumerator?
+            .compactMap({ (element) -> String? in
                 guard let relativePath = element as? String else {
                     return nil
                 }
                 return String(format: "%@/%@", path, relativePath)
             })
-            .compactMap() { $0 }
             .filter({ (path) -> Bool in
-                return path.hasSuffix("appiconset")
+                return path.hasSuffix("xcassets")
             })
-            .map({ (path) -> String in
-                return String(format: "%@/Contents.json", path)
-            })
-            ?? []
-        return appIconSetContentsJsonPaths
+            .first
+            ?? ""
+        return assetsPath
     }
-    
-    private func imagePaths(contentJsonPaths: [String]) -> [(pathInAsset: String, pathInBuildDir: String)] {
+
+    func imagePaths(contentJsonPaths: [String]) -> [(pathInAsset: String, pathInBuildDir: String)] {
         return contentJsonPaths
             .map { (contentJsonPath) -> [(pathInAsset: String, pathInBuildDir: String)] in
-                print("Contents.json path -> \(contentJsonPath)")
-                if let jsonData = try? Data(contentsOf: URL(fileURLWithPath: contentJsonPath)),
-                    let jsonObject = try? JSONSerialization.jsonObject(with: jsonData, options: []),
-                    let jsonDict = jsonObject as? [String : AnyObject] {
-                    let imageNamesArray = analyzeJsonAndGetImageNames(jsonDict: jsonDict)
-                    let imagePathsArray = imageNamesArray
-                        .map({ (imageNames) -> (pathInAsset: String, pathInBuildDir: String) in
-                            let imagePathInBuildDir = String(format: "%@/%@/%@", ConsoleIO.environmentVariable(key: .configurationBuildDir),
-                                                             ConsoleIO.environmentVariable(key: .unlocalizedResourcesFolderPath),
-                                                             imageNames.imageNameInBuildDir)
-                            let pathToAssetDir   = NSString(string: contentJsonPath).deletingLastPathComponent
-                            let imagePathInAsset = String(format: "%@/%@", pathToAssetDir, imageNames.imageNameInAsset)
-                            return (pathInAsset: imagePathInAsset, pathInBuildDir: imagePathInBuildDir)
-                        })
-                    return imagePathsArray
-                } else {
-                    print("Error: Contents.json parsing failed.")
-                    return []
-                }
+                print("Contents.json path: \(contentJsonPath)")
+                let imageNamesArray = extractImageNamesFromContentsJson(contentJsonPath: contentJsonPath)
+                let imagePathsArray = imageNamesArray
+                    .map({ (imageNames) -> (pathInAsset: String, pathInBuildDir: String) in
+                        let imagePathInBuildDir = String(format: "%@/%@/%@", ConsoleIO.environmentVariable(key: .configurationBuildDir),
+                                                         ConsoleIO.environmentVariable(key: .unlocalizedResourcesFolderPath),
+                                                         imageNames.imageNameInBuildDir)
+                        let pathToAssetDir   = NSString(string: contentJsonPath).deletingLastPathComponent
+                        let imagePathInAsset = String(format: "%@/%@", pathToAssetDir, imageNames.imageNameInAsset)
+                        return (pathInAsset: imagePathInAsset, pathInBuildDir: imagePathInBuildDir)
+                    })
+                return imagePathsArray
             }
             .flatMap() { path in path }
     }
-    
-    private func processImages(imagePaths: [(pathInAsset: String, pathInBuildDir: String)]) {
-        let buildConfig           = ConsoleIO.environmentVariable(key: .buildConfig)
-        let branchName: String    = AppInfo.branchName
-        let commitId: String      = AppInfo.commitId
-        let buildNumber: String   = AppInfo.buildNumber
-        let versionNumber: String = AppInfo.versionNumber
-        let dateStr: String       = currentDate()
-        
-        imagePaths
-            .map({ (pathInAsset: String, pathInBuildDir: String) -> String in
-                return pathInBuildDir
-            })
-            .forEach { (path) in
-                let imageWidthStr = bash(command: "identify",
-                                         currentDirPath: nil,
-                                         arguments: ["-format", "%w", path])
-                let hudWidth        = Int(imageWidthStr) ?? 0
-                let topHUDHeight    = 20
-                let bottomHUDHeight = 48
-                _ = bash(command: "convert",
-                         currentDirPath: nil,
-                         arguments: ["-background", "#0008",
-                                     "-fill", "white",
-                                     "-gravity", "center",
-                                     "-size", String(format: "%dx%d", hudWidth, topHUDHeight),
-                                     "caption:\(dateStr)",
-                            path,
-                            "+swap",
-                            "-gravity", "north" ,
-                            "-composite", path])
-                _ = bash(command: "convert",
-                         currentDirPath: nil,
-                         arguments: ["-background", "#0008",
-                                     "-fill", "white",
-                                     "-gravity", "center",
-                                     "-size", String(format: "%dx%d", hudWidth, bottomHUDHeight),
-                                     "caption:\(versionNumber)(\(buildNumber)) \(buildConfig) \n\(branchName) \n\(commitId)",
-                            path,
-                            "+swap",
-                            "-gravity", "south" ,
-                            "-composite", path])
-        }
-    }
-    
-    private func currentDate() -> String {
-        let cal = Calendar(identifier: .gregorian)
-        let dateComp = cal.dateComponents([.year, .month, .day, .minute, .hour],
-                                          from: Date())
-        return String(format: "%02d:%02d %02d/%02d %04d", dateComp.hour!,
-                      dateComp.minute!,
-                      dateComp.month!,
-                      dateComp.day!,
-                      dateComp.year!)
-    }
-    
-    private func analyzeJsonAndGetImageNames(jsonDict: [String : AnyObject]) -> [(imageNameInAsset: String, imageNameInBuildDir: String)] {
-        guard let images = jsonDict["images"] as? [[String : String]] else {
-            return []
+
+    /// Get image names from Contents.json
+    func extractImageNamesFromContentsJson(contentJsonPath: String) -> [(imageNameInAsset: String, imageNameInBuildDir: String)] {
+        guard let jsonData = try? Data(contentsOf: URL(fileURLWithPath: contentJsonPath)),
+            let jsonObject = try? JSONSerialization.jsonObject(with: jsonData, options: []),
+            let jsonDict = jsonObject as? [String : AnyObject],
+            let images = jsonDict["images"] as? [[String : String]] else {
+                print("Error: Contents.json parsing failed.")
+                return []
         }
         return images
-            .map({ (dict) -> (imageNameInAsset: String, imageNameInBuildDir: String)? in
+            .compactMap({ (dict) -> (imageNameInAsset: String, imageNameInBuildDir: String)? in
                 guard let size = dict["size"],
                     let scale    = dict["scale"],
                     let idiom    = dict["idiom"],
@@ -172,12 +208,11 @@ final class IconConverter {
                         return nil
                 }
                 return (imageNameInAsset: filename,
-                        imageNameInBuildDir: convertImageName(size: size, scale: scale, idiom: idiom))
+                        imageNameInBuildDir: generateAppIconImageNameFrom(size: size, scale: scale, idiom: idiom))
             })
-            .compactMap() { $0 }
     }
-    
-    private func convertImageName(size: String, scale: String, idiom: String) -> String {
+
+    private func generateAppIconImageNameFrom(size: String, scale: String, idiom: String) -> String {
         let scaleForFilename: String
         if scale == "1x" {
             scaleForFilename = ""
@@ -190,14 +225,8 @@ final class IconConverter {
         } else {
             idiomForFilename = ""
         }
-        return String(format: "AppIcon%@%@%@.png", size, scaleForFilename, idiomForFilename)
+        let appIconName = ConsoleIO.environmentVariable(key: .appIconName)
+        return String(format: "%@%@%@%@.png", appIconName, size, scaleForFilename, idiomForFilename)
     }
-    
-    /// Copy icon image manually. Otherwise, it modifies already modified icon file when build with cache.
-    private func copyAssetImageToBuildDirectory(pathInAsset: String, pathInBuildDir: String) {
-        let manager = FileManager.default
-        _ = try? manager.removeItem(atPath: pathInBuildDir)
-        _ = try? manager.copyItem(atPath: pathInAsset, toPath: pathInBuildDir)
-    }
-    
+
 }
