@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2D4BD8E71EAC812E001708F3 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4BD8E61EAC812E001708F3 /* main.swift */; };
+		2DA55F3C211FED1000599A5D /* Date+Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA55F3B211FED1000599A5D /* Date+Util.swift */; };
 		752A0EA71EADED3D0022C78D /* ConsoleIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752A0EA61EADED3D0022C78D /* ConsoleIO.swift */; };
 		752A0EAB1EADF7760022C78D /* IconConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752A0EAA1EADF7760022C78D /* IconConverter.swift */; };
 		752A0EBE1EAF080D0022C78D /* OptionType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752A0EBD1EAF080D0022C78D /* OptionType.swift */; };
@@ -31,6 +32,7 @@
 /* Begin PBXFileReference section */
 		2D4BD8E31EAC812E001708F3 /* iconhud */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = iconhud; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D4BD8E61EAC812E001708F3 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		2DA55F3B211FED1000599A5D /* Date+Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Util.swift"; sourceTree = "<group>"; };
 		752A0EA61EADED3D0022C78D /* ConsoleIO.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ConsoleIO.swift; sourceTree = "<group>"; };
 		752A0EAA1EADF7760022C78D /* IconConverter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IconConverter.swift; sourceTree = "<group>"; };
 		752A0EBD1EAF080D0022C78D /* OptionType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OptionType.swift; sourceTree = "<group>"; };
@@ -69,6 +71,7 @@
 		2D4BD8E51EAC812E001708F3 /* IconHUD */ = {
 			isa = PBXGroup;
 			children = (
+				2DA55F3A211FECE300599A5D /* extension */,
 				752A0EBC1EAF08050022C78D /* enum */,
 				2D4BD8E61EAC812E001708F3 /* main.swift */,
 				752A0EA61EADED3D0022C78D /* ConsoleIO.swift */,
@@ -77,6 +80,14 @@
 				75E606F51EAF1A9E0084A085 /* Functions.swift */,
 			);
 			path = IconHUD;
+			sourceTree = "<group>";
+		};
+		2DA55F3A211FECE300599A5D /* extension */ = {
+			isa = PBXGroup;
+			children = (
+				2DA55F3B211FED1000599A5D /* Date+Util.swift */,
+			);
+			name = extension;
 			sourceTree = "<group>";
 		};
 		752A0EBC1EAF08050022C78D /* enum */ = {
@@ -149,6 +160,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2D4BD8E71EAC812E001708F3 /* main.swift in Sources */,
+				2DA55F3C211FED1000599A5D /* Date+Util.swift in Sources */,
 				752A0EC01EAF084C0022C78D /* EnvironmentVariable.swift in Sources */,
 				752A0EA71EADED3D0022C78D /* ConsoleIO.swift in Sources */,
 				75E606F61EAF1A9E0084A085 /* Functions.swift in Sources */,

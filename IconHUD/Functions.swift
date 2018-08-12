@@ -23,6 +23,7 @@ func shell(launchPath: String, currentDirPath: String?, arguments: [String]) -> 
     return output.replacingOccurrences(of: "\n", with: "")
 }
 
+@discardableResult
 func bash(command: String, currentDirPath: String?, arguments: [String]) -> String {
     let whichPathForCommand = shell(launchPath: "/bin/bash", currentDirPath: nil, arguments: [ "-l", "-c", "which \(command)" ])
     return shell(launchPath: whichPathForCommand,
